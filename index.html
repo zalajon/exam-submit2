@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>车辆查验考试 - 照片提交系统</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; background: #0e1117; color: #fafafa; min-height: 100vh; }
+
+/* 顶部导航 - 模仿 Streamlit */
+.top-bar { background: #262730; padding: 0.6rem 1rem; display: flex; align-items: center; border-bottom: 1px solid #333; }
+.top-bar .logo { font-size: 1.2rem; font-weight: 700; color: #fff; }
+.top-bar .logo span { color: #ff4b4b; }
+
+/* 主容器 */
+.container { max-width: 730px; margin: 0 auto; padding: 1.5rem 1rem; }
+
+/* 标题 */
+h1 { font-size: 1.8rem; margin-bottom: 0.5rem; color: #fff; }
+h1 .emoji { font-size: 1.6rem; }
+
+/* Tab 切换 - 模仿 Streamlit radio horizontal */
+.tab-bar { display: flex; gap: 0.5rem; margin: 1rem 0 1.5rem; }
+.tab { flex: 1; padding: 0.7rem; text-align: center; border-radius: 0.5rem; cursor: pointer; font-size: 0.95rem; transition: all 0.2s; border: 1px solid #333; background: #1a1a2e; color: #aaa; }
+.tab.active { background: #ff4b4b; color: #fff; border-color: #ff4b4b; }
+
+/* 表单区域 */
+.form-section { background: transparent; }
+.sub-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem; color: #e0e0e0; }
+
+/* 输入框 */
+.input-group { margin-bottom: 1rem; }
+.input-group label { display: block; font-size: 0.85rem; color: #b0b0b0; margin-bottom: 0.3rem; }
+.input-group input, .input-group select {
+  width: 100%; padding: 0.6rem 0.8rem; border-radius: 0.5rem;
+  border: 1px solid #444; background: #0e1117; color: #fff;
+  font-size: 0.95rem; outline: none; transition: border 0.2s;
+}
+.input-group input:focus, .input-group select:focus { border-color: #ff4b4b; }
+.input-group input::placeholder { color: #555; }
+.input-group select option { background: #1a1a2e; color: #fff; }
+
+/* 照片上传区 */
+.photo-section { margin: 1.2rem 0; }
+.photo-hint { font-size: 0.8rem; color: #888; margin-bottom: 0.5rem; line-height: 1.4; }
+.upload-area {
+  border: 2px dashed #444; border-radius: 0.8rem; padding: 2rem 1rem;
+  text-align: center; cursor: pointer; transition: all 0.3s; background: #141420;
+}
+.upload-area:hover { border-color: #ff4b4b; background: #1a1a2e; }
+.upload-area .icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
+.upload-area .text { color: #888; font-size: 0.9rem; }
+.upload-area input[type="file"] { display: none; }
+
+/* 照片预览网格 */
+.photo-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin-top: 0.8rem; }
+.photo-thumb { position: relative; border-radius: 0.5rem; overflow: hidden; aspect-ratio: 1; background: #222; }
+.photo-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.photo-thumb .badge { position: absolute; bottom: 2px; left: 2px; background: rgba(0,0,0,0.7); color: #fff; font-size: 0.6rem; padding: 1px 4px; border-radius: 3px; }
+
+/* 提交按钮 */
+.submit-btn {
+  width: 100%; padding: 0.8rem; margin-top: 1.5rem; border: none;
+  border-radius: 0.5rem; font-size: 1rem; font-weight: 600;
+  cursor: pointer; transition: all 0.2s;
+  background: #ff4b4b; color: #fff;
+}
+.submit-btn:hover { background: #e04444; }
+.submit-btn:disabled { background: #444; cursor: not-allowed; }
+
+/* Loading */
+.loading-overlay {
+  display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(14,17,23,0.9); z-index: 100; justify-content: center;
+  align-items: center; flex-direction: column;
+}
+.loading-overlay.show { display: flex; }
+.spinner { width: 50px; height: 50px; border: 4px solid #333; border-top-color: #ff4b4b; border-radius: 50%; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { margin-top: 1rem; color: #aaa; font-size: 0.95rem; }
+.loading-step { margin-top: 0.5rem; color: #666; font-size: 0.85rem; }
+
+/* 结果页面 */
+.result-page { display: none; text-align: center; padding: 2rem 0; }
+.result-page.show { display: block; }
+.result-icon { font-size: 4rem; margin-bottom: 1rem; }
+.result-title { font-size: 1.5rem; font-weight: 700; color: #4caf50; margin-bottom: 0.5rem; }
+.result-box {
+  background: #1a1a2e; border: 1px solid #333; border-radius: 0.8rem;
+  padding: 1.2rem; margin: 1rem 0; text-align: left;
+}
+.result-row { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #222; }
+.result-row:last-child { border: none; }
+.result-row .label { color: #888; }
+.result-row .value { color: #fff; font-weight: 600; }
+.score-big { font-size: 2.5rem; font-weight: 800; color: #4caf50; margin: 1rem 0; }
+.score-pass { display: inline-block; background: #4caf50; color: #fff; padding: 0.3rem 1.2rem; border-radius: 2rem; font-weight: 700; font-size: 1.1rem; }
+.result-note { margin-top: 1.5rem; color: #666; font-size: 0.8rem; line-height: 1.5; }
+
+/* 记录页 */
+.records-page { display: none; }
+.records-page.show { display: block; }
+.record-empty { text-align: center; color: #666; padding: 3rem 0; font-size: 1rem; }
+.record-card {
+  background: #1a1a2e; border: 1px solid #333; border-radius: 0.8rem;
+  padding: 1rem; margin-bottom: 0.8rem;
+}
+.record-header { font-weight: 700; color: #ff4b4b; font-size: 0.9rem; margin-bottom: 0.5rem; }
+.record-info { display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem; font-size: 0.85rem; color: #aaa; }
+
+/* 错误提示 */
+.error-msg { background: #3d1f1f; border: 1px solid #ff4b4b; border-radius: 0.5rem; padding: 0.6rem 0.8rem; margin-bottom: 0.8rem; color: #ff6b6b; font-size: 0.85rem; }
+
+/* footer */
+.footer { text-align: center; padding: 2rem 0 1rem; color: #333; font-size: 0.7rem; }
+
+/* 照片选择弹窗 */
+.picker-mask {
+  display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5); z-index: 200; justify-content: center; align-items: flex-end;
+}
+.picker-mask.show { display: flex; }
+.picker-box {
+  background: #1a1a2e; border-radius: 1rem 1rem 0 0; width: 100%; max-width: 400px;
+  padding: 1rem; padding-bottom: 2rem;
+}
+.picker-title { text-align: center; color: #888; font-size: 0.85rem; margin-bottom: 0.8rem; }
+.picker-btn {
+  display: flex; align-items: center; gap: 0.8rem; padding: 1rem;
+  border-radius: 0.5rem; cursor: pointer; margin-bottom: 0.5rem;
+  background: #262730; color: #fff; font-size: 1rem; transition: background 0.2s;
+}
+.picker-btn:hover { background: #333; }
+.picker-btn .icon { font-size: 1.5rem; }
+.picker-cancel {
+  text-align: center; padding: 0.8rem; color: #888; font-size: 0.9rem;
+  cursor: pointer; margin-top: 0.5rem; border-radius: 0.5rem; background: #262730;
+}
+</style>
+</head>
+<body>
+
+<!-- 顶部栏 -->
+<div class="top-bar">
+  <div class="logo">🚗 车辆查验考试提交系统</div>
+</div>
+
+<!-- 主容器 -->
+<div class="container">
+
+  <!-- Tab 导航 -->
+  <div class="tab-bar">
+    <div class="tab active" onclick="switchTab('submit')">📝 提交照片</div>
+    <div class="tab" onclick="switchTab('records')">📋 已提交记录</div>
+  </div>
+
+  <!-- ========== 提交页面 ========== -->
+  <div id="submitPage" class="form-section">
+    <div class="sub-title">填写信息</div>
+
+    <div id="errorBox"></div>
+
+    <div class="input-group">
+      <label>查验员1</label>
+      <input type="text" id="examiner1" placeholder="请输入查验员1姓名">
+    </div>
+    <div class="input-group">
+      <label>查验员2</label>
+      <input type="text" id="examiner2" placeholder="请输入查验员2姓名">
+    </div>
+    <div class="input-group">
+      <label>选择查验车辆</label>
+      <select id="vehicleType">
+        <option value="罐式货车">罐式货车</option>
+        <option value="大型客车">大型客车</option>
+        <option value="仓栅式货车">仓栅式货车</option>
+        <option value="进口小轿车">进口小轿车</option>
+      </select>
+    </div>
+
+    <div class="photo-section">
+      <div class="sub-title">上传照片</div>
+      <div class="photo-hint">最多上传 40 张照片，单张不超过 10MB，支持 JPG/PNG 格式</div>
+      <div class="upload-area" id="uploadArea" onclick="showPhotoPicker()">
+        <div class="icon">📸</div>
+        <div class="text">点击拍照或选择照片</div>
+        <input type="file" id="fileInput" accept="image/*" onchange="handleFiles(this.files)">
+        <input type="file" id="cameraInput" accept="image/*" capture="environment" onchange="handleFiles(this.files)" style="display:none">
+      </div>
+      <div class="photo-grid" id="photoGrid"></div>
+    </div>
+
+    <button class="submit-btn" id="submitBtn" onclick="fakeSubmit()">✅ 提交</button>
+  </div>
+
+  <!-- ========== 记录页面 ========== -->
+  <div id="recordsPage" class="records-page">
+    <div class="sub-title">📋 已提交记录</div>
+    <div id="recordList"></div>
+  </div>
+
+  <!-- ========== 结果页面 ========== -->
+  <div id="resultPage" class="result-page">
+    <div class="result-icon">✅</div>
+    <div class="result-title">提交成功！</div>
+    <div class="result-box">
+      <div class="result-row"><span class="label">提交编号</span><span class="value" id="resId"></span></div>
+      <div class="result-row"><span class="label">查验员1</span><span class="value" id="resE1"></span></div>
+      <div class="result-row"><span class="label">查验员2</span><span class="value" id="resE2"></span></div>
+      <div class="result-row"><span class="label">查验车辆</span><span class="value" id="resV"></span></div>
+      <div class="result-row"><span class="label">照片数量</span><span class="value" id="resP"></span></div>
+    </div>
+    <div style="margin: 1.5rem 0 0.5rem; color: #fff; font-size: 1.1rem; font-weight: 500;">经AI分析，您的查验照片准确率为：</div>
+    <div class="score-big" id="resScore">90%</div>
+    <div id="resStatus"></div>
+    <div class="result-note">
+      最终评分以考官审核为准<br>
+      请牢记提交编号，如有疑问请联系考官
+    </div>
+    <button class="submit-btn" style="margin-top: 1.5rem; background: #333;" onclick="backToForm()">返回提交页面</button>
+  </div>
+
+  <div class="footer">车辆查验考试照片提交系统 v3.0</div>
+</div>
+
+<!-- 照片选择弹窗 -->
+<div class="picker-mask" id="pickerMask">
+  <div class="picker-box">
+    <div class="picker-title">选择上传方式</div>
+    <div class="picker-btn" onclick="pickCamera()">
+      <span class="icon">📷</span> <span>拍照</span>
+    </div>
+    <div class="picker-btn" onclick="pickGallery()">
+      <span class="icon">🖼️</span> <span>从相册选择</span>
+    </div>
+    <div class="picker-cancel" onclick="closePicker()">取消</div>
+  </div>
+</div>
+
+<!-- Loading 遮罩 -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-text">正在提交...</div>
+  <div class="loading-step" id="loadingStep">连接服务器</div>
+</div>
+
+<script>
+// ===== 照片选择弹窗 =====
+function showPhotoPicker() {
+  document.getElementById('pickerMask').classList.add('show');
+}
+function closePicker() {
+  document.getElementById('pickerMask').classList.remove('show');
+}
+function pickCamera() {
+  closePicker();
+  document.getElementById('cameraInput').click();
+}
+function pickGallery() {
+  closePicker();
+  document.getElementById('fileInput').click();
+}
+
+// ===== 照片管理 =====
+let selectedFiles = [];
+const MAX = 40;
+
+function handleFiles(files) {
+  const remaining = MAX - selectedFiles.length;
+  if (files.length > remaining) {
+    alert(`最多只能再选择 ${remaining} 张照片（上限40张）`);
+  }
+  const toAdd = Array.from(files).slice(0, remaining);
+  for (const f of toAdd) {
+    if (f.size > 10 * 1024 * 1024) { alert(`文件 ${f.name} 超过10MB限制`); continue; }
+    selectedFiles.push(f);
+  }
+  renderPhotos();
+  // 重置 input
+  document.getElementById('fileInput').value = '';
+}
+
+function renderPhotos() {
+  const grid = document.getElementById('photoGrid');
+  grid.innerHTML = '';
+  selectedFiles.forEach((f, i) => {
+    const div = document.createElement('div');
+    div.className = 'photo-thumb';
+    const img = document.createElement('img');
+    img.src = URL.createObjectURL(f);
+    const badge = document.createElement('div');
+    badge.className = 'badge';
+    badge.textContent = `#${i+1}`;
+    div.appendChild(img);
+    div.appendChild(badge);
+    grid.appendChild(div);
+  });
+  document.querySelector('.upload-area').style.display = selectedFiles.length >= MAX ? 'none' : '';
+}
+
+function removePhoto(idx) {
+  selectedFiles.splice(idx, 1);
+  renderPhotos();
+}
+
+// ===== Tab 切换 =====
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  if (tab === 'submit') {
+    document.querySelectorAll('.tab')[0].classList.add('active');
+    document.getElementById('submitPage').style.display = '';
+    document.getElementById('resultPage').classList.remove('show');
+    document.getElementById('recordsPage').classList.remove('show');
+  } else {
+    document.querySelectorAll('.tab')[1].classList.add('active');
+    document.getElementById('submitPage').style.display = 'none';
+    document.getElementById('resultPage').classList.remove('show');
+    document.getElementById('recordsPage').classList.add('show');
+    renderRecords();
+  }
+}
+
+// ===== 假提交 =====
+function fakeSubmit() {
+  const e1 = document.getElementById('examiner1').value.trim();
+  const e2 = document.getElementById('examiner2').value.trim();
+  const vType = document.getElementById('vehicleType').value;
+  const errBox = document.getElementById('errorBox');
+  errBox.innerHTML = '';
+
+  const errors = [];
+  if (!e1) errors.push('请填写查验员1');
+  if (!e2) errors.push('请填写查验员2');
+  if (selectedFiles.length === 0) errors.push('请至少上传一张照片');
+  if (selectedFiles.length > MAX) errors.push(`照片数量超过上限（最多 ${MAX} 张）`);
+
+  if (errors.length > 0) {
+    errBox.innerHTML = errors.map(e => `<div class="error-msg">${e}</div>`).join('');
+    return;
+  }
+
+  // 显示 loading
+  const overlay = document.getElementById('loadingOverlay');
+  const step = document.getElementById('loadingStep');
+  overlay.classList.add('show');
+
+  // 模拟分步骤 loading
+  const steps = [
+    '连接服务器...',
+    '上传照片 (1/' + selectedFiles.length + ')...',
+    '上传照片 (' + Math.ceil(selectedFiles.length/2) + '/' + selectedFiles.length + ')...',
+    '上传照片 (' + selectedFiles.length + '/' + selectedFiles.length + ')...',
+    'AI 评分中...',
+    '生成报告...',
+    '提交完成！'
+  ];
+
+  let i = 0;
+  const timer = setInterval(() => {
+    if (i < steps.length) {
+      step.textContent = steps[i];
+      i++;
+    } else {
+      clearInterval(timer);
+      overlay.classList.remove('show');
+      showResult(e1, e2, vType, selectedFiles.length);
+    }
+  }, 800);
+}
+
+function showResult(e1, e2, vType, photoCount) {
+  const now = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const id = 'EXAM_' + now.getFullYear() + pad(now.getMonth()+1) + pad(now.getDate())
+    + '_' + pad(now.getHours()) + pad(now.getMinutes()) + pad(now.getSeconds())
+    + '_' + String(Math.floor(Math.random()*9000+1000));
+
+  // 随机得分 85-95%
+  const score = Math.floor(Math.random() * 11) + 85;
+
+  document.getElementById('resId').textContent = id;
+  document.getElementById('resE1').textContent = e1;
+  document.getElementById('resE2').textContent = e2;
+  document.getElementById('resV').textContent = vType;
+  document.getElementById('resP').textContent = photoCount + ' 张';
+  document.getElementById('resScore').textContent = score + '%';
+  document.getElementById('resScore').style.color = score >= 50 ? '#4caf50' : '#ff4b4b';
+  document.getElementById('resStatus').innerHTML = score >= 50
+    ? '<span class="score-pass">✅ 合格</span>'
+    : '<span class="score-pass" style="background:#ff4b4b;">❌ 不合格</span>';
+
+  // 保存到本地记录
+  const records = JSON.parse(localStorage.getItem('exam_records') || '[]');
+  records.push({
+    id: id, e1: e1, e2: e2, vType: vType, photos: photoCount, score: score + '%',
+    time: now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate()) + ' ' + pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds())
+  });
+  localStorage.setItem('exam_records', JSON.stringify(records));
+
+  // 显示结果
+  document.getElementById('submitPage').style.display = 'none';
+  document.getElementById('resultPage').classList.add('show');
+
+  // 清空表单
+  document.getElementById('examiner1').value = '';
+  document.getElementById('examiner2').value = '';
+  selectedFiles = [];
+  renderPhotos();
+  document.getElementById('errorBox').innerHTML = '';
+}
+
+function backToForm() {
+  document.getElementById('resultPage').classList.remove('show');
+  document.getElementById('submitPage').style.display = '';
+}
+
+// ===== 记录渲染 =====
+function renderRecords() {
+  const records = JSON.parse(localStorage.getItem('exam_records') || '[]');
+  const list = document.getElementById('recordList');
+  if (records.length === 0) {
+    list.innerHTML = '<div class="record-empty">暂无提交记录</div>';
+    return;
+  }
+  list.innerHTML = '<div style="color:#888;font-size:0.85rem;margin-bottom:0.8rem;">共 ' + records.length + ' 条记录</div>' +
+    records.slice().reverse().map(r => `
+      <div class="record-card">
+        <div class="record-header">${r.id}</div>
+        <div class="record-info">
+          <span>👤 查验员1：${r.e1}</span>
+          <span>🚗 车辆：${r.vType}</span>
+          <span>👤 查验员2：${r.e2}</span>
+          <span>📸 照片数：${r.photos}</span>
+          <span>🕐 提交时间：${r.time}</span>
+          <span>📊 预评分：${r.score}</span>
+        </div>
+      </div>
+    `).join('');
+}
+</script>
+</body>
+</html>
