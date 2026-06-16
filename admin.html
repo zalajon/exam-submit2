@@ -100,9 +100,7 @@ async function loadRecords() {
   document.getElementById('recordTable').style.display = 'none';
   
   try {
-    const res = await fetch(apiUrl, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
+    const res = await fetch(apiUrl);
     
     if (res.status === 404) {
       allRecords = [];
