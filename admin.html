@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>考试记录管理</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0e1117; color: #fafafa; min-height: 100vh; padding: 1rem; }
+
+.header { text-align: center; padding: 1.5rem 0; border-bottom: 1px solid #333; margin-bottom: 1.5rem; }
+.header h1 { font-size: 1.5rem; color: #fff; }
+.header p { color: #888; font-size: 0.85rem; margin-top: 0.5rem; }
+
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.8rem; margin-bottom: 1.5rem; }
+.stat-card { background: #1a1a2e; border-radius: 0.8rem; padding: 1rem; text-align: center; }
+.stat-num { font-size: 1.8rem; font-weight: 700; color: #ff4b4b; }
+.stat-label { font-size: 0.75rem; color: #888; margin-top: 0.3rem; }
+
+.btn-row { display: flex; gap: 0.8rem; margin-bottom: 1.5rem; }
+.btn { flex: 1; padding: 0.8rem; border: none; border-radius: 0.5rem; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.btn-refresh { background: #333; color: #fff; }
+.btn-refresh:hover { background: #444; }
+.btn-download { background: #ff4b4b; color: #fff; }
+.btn-download:hover { background: #e04444; }
+.btn-clear { background: #3d1f1f; color: #ff6b6b; border: 1px solid #ff4b4b; }
+
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+thead { background: #1a1a2e; }
+th, td { padding: 0.7rem 0.5rem; text-align: left; border-bottom: 1px solid #222; }
+th { color: #888; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; }
+td { color: #ddd; }
+tr:hover { background: #1a1a2e; }
+.score-pass { color: #4caf50; font-weight: 700; }
+.score-fail { color: #ff4b4b; font-weight: 700; }
+
+.empty { text-align: center; padding: 3rem; color: #666; }
+.loading { text-align: center; padding: 2rem; color: #888; }
+
+.footer { text-align: center; padding: 2rem 0 1rem; color: #333; font-size: 0.7rem; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>📊 考试记录管理</h1>
+  <p>自动同步自 GitHub · 实时更新</p>
+</div>
+
+<div class="stats" id="stats">
+  <div class="stat-card"><div class="stat-num" id="totalCount">-</div><div class="stat-label">总记录数</div></div>
+  <div class="stat-card"><div class="stat-num" id="passCount">-</div><div class="stat-label">合格</div></div>
+  <div class="stat-card"><div class="stat-num" id="avgScore">-</div><div class="stat-label">平均准确率</div></div>
+</div>
+
+<div class="btn-row">
+  <button class="btn btn-refresh" onclick="loadRecords()">🔄 刷新</button>
+  <button class="btn btn-download" onclick="downloadCSV()">📥 下载 Excel</button>
+</div>
+
+<div class="loading" id="loading">加载中...</div>
+
+<div class="table-wrap">
+  <table id="recordTable" style="display:none;">
+    <thead>
+      <tr>
+        <th>序号</th>
+        <th>提交编号</th>
+        <th>查验员1</th>
+        <th>查验员2</th>
+        <th>车辆</th>
+        <th>照片数</th>
+        <th>准确率</th>
+        <th>结果</th>
+        <th>提交时间</th>
+      </tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+</div>
+
+<div class="footer">车辆查验考试记录管理系统 v3.0</div>
+
+<script>
+const GITHUB_CONFIG = {
+  owner: 'zalajon',
+  repo: 'exam-submit2',
+  path: 'records.json',
+  token: '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'
+};
+
+let allRecords = [];
+
+async function loadRecords() {
+  const { owner, repo, path, token } = GITHUB_CONFIG;
+  const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${path}`;
+  
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('recordTable').style.display = 'none';
+  
+  try {
+    const res = await fetch(apiUrl, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    if (res.status === 404) {
+      allRecords = [];
+    } else if (res.ok) {
+      const data = await res.json();
+      const content = decodeURIComponent(escape(atob(data.content.replace(/\n/g, ''))));
+      allRecords = JSON.parse(content);
+    } else {
+      throw new Error('Failed: ' + res.status);
+    }
+    
+    renderTable();
+    updateStats();
+  } catch (e) {
+    document.getElementById('loading').innerHTML = '❌ 加载失败: ' + e.message;
+  }
+}
+
+function renderTable() {
+  document.getElementById('loading').style.display = 'none';
+  
+  if (allRecords.length === 0) {
+    document.getElementById('loading').innerHTML = '暂无考试记录';
+    document.getElementById('loading').style.display = 'block';
+    return;
+  }
+  
+  document.getElementById('recordTable').style.display = 'table';
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = '';
+  
+  allRecords.slice().reverse().forEach((r, i) => {
+    const scoreNum = parseInt(r.score);
+    const passClass = scoreNum >= 50 ? 'score-pass' : 'score-fail';
+    const passText = scoreNum >= 50 ? '✅ 合格' : '❌ 不合格';
+    
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${allRecords.length - i}</td>
+      <td style="font-size:0.75rem;color:#888;">${r.id}</td>
+      <td>${r.e1}</td>
+      <td>${r.e2}</td>
+      <td>${r.vType}</td>
+      <td>${r.photos}</td>
+      <td class="${passClass}">${r.score}</td>
+      <td class="${passClass}">${passText}</td>
+      <td style="font-size:0.75rem;color:#888;">${r.time}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function updateStats() {
+  document.getElementById('totalCount').textContent = allRecords.length;
+  
+  if (allRecords.length === 0) {
+    document.getElementById('passCount').textContent = '-';
+    document.getElementById('avgScore').textContent = '-';
+    return;
+  }
+  
+  const passCount = allRecords.filter(r => parseInt(r.score) >= 50).length;
+  document.getElementById('passCount').textContent = passCount;
+  
+  const avgScore = allRecords.reduce((sum, r) => sum + parseInt(r.score), 0) / allRecords.length;
+  document.getElementById('avgScore').textContent = avgScore.toFixed(1) + '%';
+}
+
+function downloadCSV() {
+  if (allRecords.length === 0) {
+    alert('暂无记录可下载');
+    return;
+  }
+  
+  // 生成 CSV
+  const headers = ['序号', '提交编号', '查验员1', '查验员2', '查验车辆', '照片数量', '准确率', '结果', '提交时间'];
+  const rows = allRecords.map((r, i) => {
+    const scoreNum = parseInt(r.score);
+    const passText = scoreNum >= 50 ? '合格' : '不合格';
+    return [i + 1, r.id, r.e1, r.e2, r.vType, r.photos, r.score, passText, r.time];
+  });
+  
+  // 添加 BOM 让 Excel 正确识别中文
+  let csv = '\uFEFF' + headers.join(',') + '\n';
+  rows.forEach(row => {
+    csv += row.map(cell => `"${cell}"`).join(',') + '\n';
+  });
+  
+  // 下载
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `考试记录_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// 自动加载
+loadRecords();
+// 每30秒自动刷新
+setInterval(loadRecords, 30000);
+</script>
+</body>
+</html>
